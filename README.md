@@ -1,54 +1,109 @@
-# 글자공방 — Python ASCII Art Generator
+# ASCII Studio
 
-**Python + Tkinter로 만든 데스크톱 프로그램**입니다. 브라우저나 웹 서버 없이 독립 창에서 실행됩니다. 참고 화면처럼 모드·스타일·채움 도구 모음, 입력칸, ASCII 결과창으로 구성했으며 한글을 지원합니다.
+A **Python command-line ASCII art generator** for Windows CMD, PowerShell, and other terminals. It runs entirely in the terminal and never opens a GUI, browser, or file dialog. All commands, prompts, errors, and documentation are in English. Korean text rendering is still supported.
 
-## 실행
+## Installation
 
-Python 3.10 이상과 Tkinter가 필요합니다. Windows의 python.org 배포판에는 Tkinter가 기본 포함됩니다.
+Requires Python 3.10 or later and Pillow. Tkinter is not required.
 
-```sh
+```cmd
 python -m pip install -r requirements.txt
+```
+
+## Quick start (Windows CMD)
+
+Run without arguments to enter one line of text at the terminal prompt:
+
+```cmd
 python main.py
 ```
 
-Windows에서는 설치 후 `run.bat`을 더블클릭해도 됩니다. Linux에 Tkinter가 없다면 배포판의 `python3-tk` 패키지를 설치하세요. macOS에서는 Tkinter가 포함된 Python을 사용하세요.
+Or pass text directly:
 
-## 기능
-
-- 한글 완성형·자모, 영문, 숫자, 기호와 여러 줄 텍스트 (최대 300자)
-- 블록 / 크게 / 윤곽선 / 그림자 / 3D / 기울임 스타일
-- `█`, `▓`, `#`, `*`, `@`, `.` 채움 선택
-- PNG·JPG·WEBP·GIF·BMP 이미지 → ASCII 변환
-- 이미지 가로 문자 수·대비·명암 반전 조절
-- UTF-8 TXT, PNG 저장 및 텍스트 복사
-- Windows 이미지 클립보드 복사
-- 미리보기 확대·축소, 가로·세로 스크롤, 밝은/어두운 테마
-- 사용자 TTF·OTF·TTC 글꼴 선택
-- 모든 처리는 로컬에서 수행, 인터넷·API 키 불필요
-
-## 한글 지원
-
-영문 전용 글자 사전 대신 Pillow로 실제 글꼴을 픽셀에 그린 뒤 문자로 변환합니다. Windows에서는 맑은 고딕, macOS에서는 Apple SD Gothic Neo, Linux에서는 Noto Sans CJK 또는 나눔고딕을 자동 탐색합니다. 자동 탐색되지 않으면 **글꼴 파일…**에서 한글을 포함하는 글꼴을 선택하세요. 글꼴이 없는 문자는 해당 기기의 글꼴 표현에 따라 다릅니다.
-
-기본 블록 모드는 유니코드 블록 문자 `█▀▄`로 한글 획을 보존합니다. 엄격한 ASCII만 필요하면 `#`, `*`, `@`, `.`을 선택하세요. 다른 앱에 붙여넣을 때 고정폭 글꼴을 사용하세요. 프로그램의 미리보기 크기 조절은 TXT 출력에 영향을 주지 않습니다. PNG는 현재 테마 색상으로 저장됩니다.
-
-이미지는 15MB·4,000만 픽셀까지 지원하며 GIF는 첫 프레임을 사용합니다. 출력 제한은 180열·240행입니다. 세로로 너무 긴 이미지는 자르거나 가로 문자 수를 줄이도록 안내합니다. 300자를 넘는 텍스트는 오류를 표시하며 임의로 잘라내지 않습니다. 텍스트의 긴 줄은 출력 폭을 기준으로 자동으로 나눕니다.
-
-이미지 복사는 Windows에서 지원합니다. 다른 OS에서는 PNG 저장을 사용하세요. 시스템에서 클립보드가 사용 중이면 잠시 후 다시 시도하세요.
-
-## 검증
-
-```sh
-python -m unittest discover -s tests -p "test_engine.py" -v
-python -m unittest discover -s tests -p "test_gui.py" -v
+```cmd
+python main.py --text "HELLO GPT!"
+python main.py --text "ASCII STUDIO" --style outline --fill "#"
+run.bat --text "Hello" --style 3d
 ```
 
-GUI 테스트는 데스크톱 세션이 필요합니다. Windows / Python 3.15 / Pillow 13 환경에서 검증했습니다.
+You can enter Korean text in exactly the same way. Use a font containing the required Korean characters. No network connection or API key is needed after installation.
 
-| 파일 | 역할 |
+## Input and output
+
+```cmd
+python main.py --text-file message.txt
+type message.txt | python main.py
+python main.py --text "Hello" --output result.txt
+python main.py --text "Hello" --png result.png --dark
+python main.py --text "Hello" --output result.txt --png result.png --quiet
+python main.py --text "Hello" > result.txt
+python main.py --image photo.jpg --width 80 --contrast 1.5
+python main.py --image photo.png --invert --fill shade --output photo-art.txt
+python main.py --text "Hello" --copy
+python main.py --text "Hello" --copy-image
+python main.py --help
+```
+
+Text files and redirected output use UTF-8. A UTF-8 BOM is accepted in input files. For multiple lines, use `--text-file` or stdin. A literal `\n` in CMD arguments is not converted to a line break. Standard output contains only the art; prompts, save confirmations, and errors go to standard error. `--quiet` suppresses the art when saving or copying. Existing output files are replaced; input image, text, and font files are protected from being used as output paths. Parent output directories must already exist.
+
+`run.bat` forwards arguments and exit codes without changing the current directory, so relative file paths are resolved from the directory where you run the command. It does not pause or open another window.
+
+## Options
+
+| Option | Description |
 | --- | --- |
-| `main.py` | Tkinter 데스크톱 화면과 저장·복사 동작 |
-| `ascii_engine.py` | 한글 렌더링, 스타일, 이미지 변환, PNG 출력 |
-| `requirements.txt` | Pillow 의존성 |
-| `run.bat` | Windows 실행 바로가기 |
-| `tests/` | 변환 및 GUI 통합 테스트 |
+| `--text`, `-t` | Text to render, up to 300 characters |
+| `--text-file` | UTF-8 text file, including multiline text |
+| `--image`, `-i` | Local image input; mutually exclusive with text inputs |
+| `--style` | `block`, `large`, `outline`, `shadow`, `3d`, or `italic` (text only) |
+| `--fill` | `block`, `shade`, `#`, `*`, `@`, or `.` |
+| `--font` | Custom TTF, OTF, or TTC font for text rendering |
+| `--columns` | Text wrapping width, 40-900 columns; defaults to terminal width |
+| `--width` | Image output width, 30-180 columns; default 80 |
+| `--contrast` | Image contrast, 0.5-2.5; default 1.2 |
+| `--invert` | Invert image brightness |
+| `--output`, `-o` | Save a UTF-8 text file |
+| `--png` | Save a PNG image |
+| `--dark` | Dark background for PNG exports and image copies |
+| `--copy` | Copy art as text to the Windows clipboard |
+| `--copy-image` | Copy a rendered image to the Windows clipboard |
+| `--quiet`, `-q` | Suppress stdout when saving or copying |
+
+## Korean text and terminal display
+
+Pillow renders actual font glyphs before converting pixels into characters. The program automatically searches for Malgun Gothic on Windows, Apple SD Gothic Neo on macOS, and Noto Sans CJK or Nanum Gothic on Linux. If detection fails, specify a font:
+
+```cmd
+python main.py --text-file message.txt --font "C:\Windows\Fonts\malgunbd.ttf"
+```
+
+The default `block` fill uses Unicode block characters to preserve fine strokes. Choose `--fill "#"`, `"*"`, `"@"`, or `"."` for strict ASCII output. Use a monospace terminal font such as Consolas. If an older CMD configuration displays incorrect characters, run `chcp 65001` before starting the program. Narrow consoles wrap long art; use `--columns 80` for text or `--width 60` for images, or export a file.
+
+PNG export uses a system monospace font. Missing glyphs depend on the selected font. Clipboard options are Windows-only and operate without Tkinter or dialogs; if the clipboard is unavailable, use `--output` or `--png`.
+
+## Limits
+
+- Text: 300 Unicode characters; longer input returns an English error.
+- Images: at most 15 MB and 40 million pixels; PNG, JPG, WEBP, GIF, and BMP supported.
+- Animated GIF: first frame only; EXIF orientation is applied.
+- Image art: at most 180 columns and 240 rows. Very tall images require cropping or a smaller `--width`.
+- PNG: at most 24 million pixels and 16,000 pixels per dimension.
+- Exit codes: `0` success, `1` processing error, `2` invalid arguments, `130` cancelled input.
+
+## Tests
+
+```cmd
+python -m unittest discover -s tests -v
+```
+
+Tests cover Korean rendering, all styles, transparency, PNG generation, terminal input, English diagnostics, UTF-8 pipes, file exports, and CMD argument forwarding. They do not open windows or require a desktop session. Tested on Windows with Python 3.15 and Pillow 13.
+
+## Files
+
+| File | Purpose |
+| --- | --- |
+| `main.py` | Argument parsing, terminal input/output, export commands |
+| `ascii_engine.py` | Text and image rendering, PNG export, native clipboard support |
+| `requirements.txt` | Pillow dependency |
+| `run.bat` | Windows CMD launcher |
+| `tests/` | Headless rendering and CLI regression tests |

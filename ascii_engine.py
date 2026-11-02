@@ -8,8 +8,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
-STYLES = {"블록": "block", "크게": "large", "윤곽선": "outline", "그림자": "shadow", "3D": "3d", "기울임": "italic"}
-FILLS = {"█": "block", "▓": "shade", "#": "#", "*": "*", "@": "@", "·": "."}
+STYLES = {name: name for name in ("block", "large", "outline", "shadow", "3d", "italic")}
 
 
 def find_font(custom: str | None = None, mono: bool = False) -> str:
@@ -37,8 +36,8 @@ def find_font(custom: str | None = None, mono: bool = False) -> str:
             return str(font.path)
         except OSError:
             pass
-    raise RuntimeError("고정폭 글꼴을 찾을 수 없습니다." if mono else
-                       "한글 글꼴을 찾지 못했습니다. ‘글꼴 파일’에서 맑은 고딕 또는 Noto Sans CJK의 TTF/OTF/TTC 파일을 선택하세요.")
+    raise RuntimeError("No monospace font found. Install Consolas, Menlo, or DejaVu Sans Mono." if mono else
+                       "No Korean font found. Use --font with a Malgun Gothic or Noto Sans CJK TTF/OTF/TTC file.")
 
 
 def style_mask(source: list[list[float]], style: str) -> list[list[float]]:
@@ -89,18 +88,19 @@ def mask_to_text(mask: list[list[float]], fill: str = "block") -> str:
     return "\n".join(lines)
 
 
-def text_to_ascii(text: str, style: str = "block", fill: str = "block", font_path: str | None = None) -> str:
+def text_to_ascii(text: str, style: str = "block", fill: str = "block", font_path: str | None = None, columns: int = 900) -> str:
     if not text.strip():
         return ""
     if len(text) > 300:
-        raise ValueError("텍스트는 300자까지 입력할 수 있습니다.")
+        raise ValueError("Text must contain at most 300 characters.")
     size = 32 if style == "large" else 24
     font = ImageFont.truetype(find_font(font_path), size)
     lines = []
     for paragraph in unicodedata.normalize("NFC", text).expandtabs(4).split("\n"):
         line = ""
         for char in paragraph:
-            if font.getlength(line + char) > 900 and line:
+            # Reserve padding and the extra columns used by italic/shadow effects.
+            if font.getlength(line + char) > columns - 12 and line:
                 lines.append(line)
                 line = ""
             line += char
@@ -122,10 +122,10 @@ def text_to_ascii(text: str, style: str = "block", fill: str = "block", font_pat
 def load_image(path: str | Path) -> Image.Image:
     path = Path(path)
     if path.stat().st_size > 15 * 1024 * 1024:
-        raise ValueError("15MB 이하 이미지를 선택하세요.")
+        raise ValueError("Image files must be 15 MB or smaller.")
     with Image.open(path) as original:
         if original.width * original.height > 40_000_000:
-            raise ValueError("4,000만 픽셀 이하 이미지를 선택하세요.")
+            raise ValueError("Images must contain at most 40 million pixels.")
         original.seek(0)
         return ImageOps.exif_transpose(original).convert("RGBA")
 
@@ -133,10 +133,10 @@ def load_image(path: str | Path) -> Image.Image:
 def image_to_ascii(image: Image.Image, width: int = 80, contrast: float = 1.2,
                    invert: bool = False, fill: str = "block") -> str:
     if not 30 <= width <= 180:
-        raise ValueError("가로 문자 수는 30~180이어야 합니다.")
+        raise ValueError("Image width must be between 30 and 180 characters.")
     height = max(1, round(width * image.height / image.width * .5))
     if height > 240:
-        raise ValueError("너무 세로로 긴 이미지입니다. 가로 문자 수를 줄이거나 이미지를 잘라 주세요.")
+        raise ValueError("The image is too tall. Reduce --width or crop the image to fit within 240 rows.")
     rgba = image.convert("RGBA")
     opaque = Image.new("RGBA", rgba.size, "white")
     opaque.alpha_composite(rgba)
@@ -161,7 +161,7 @@ def art_to_image(art: str, dark: bool = False) -> Image.Image:
     width = round(max(map(len, lines), default=0) * cell_width) + 48
     height = len(lines) * cell_height + 48
     if width * height > 24_000_000 or max(width, height) > 16000:
-        raise ValueError("PNG가 너무 큽니다. 텍스트를 줄이거나 TXT로 저장하세요.")
+        raise ValueError("The PNG is too large. Shorten the text or save it with --output instead.")
     image = Image.new("RGB", (width, height), "#211e24" if dark else "white")
     draw = ImageDraw.Draw(image)
     color = "#f1eaf0" if dark else "#29242b"
@@ -180,7 +180,7 @@ def art_to_image(art: str, dark: bool = False) -> Image.Image:
 def copy_image_windows(image: Image.Image, window_handle: int = 0) -> None:
     """Transfer a DIB to the Windows clipboard; Windows owns the memory on success."""
     if sys.platform != "win32":
-        raise RuntimeError("이미지 복사는 Windows에서 지원합니다. 다른 OS에서는 PNG로 저장하세요.")
+        raise RuntimeError("Image copying is supported on Windows only. Use --png on other systems.")
     import ctypes
     import io
     from ctypes import wintypes
@@ -188,6 +188,11 @@ def copy_image_windows(image: Image.Image, window_handle: int = 0) -> None:
     image.convert("RGB").save(buffer, "BMP")
     data = buffer.getvalue()[14:]
     user32, kernel32 = ctypes.WinDLL("user32", use_last_error=True), ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.GetConsoleWindow.restype = wintypes.HWND
+    if not window_handle:
+        window_handle = kernel32.GetConsoleWindow()
+    if not window_handle:
+        raise RuntimeError("No console clipboard owner is available. Run from CMD or use --png instead.")
     kernel32.GlobalAlloc.argtypes = [wintypes.UINT, ctypes.c_size_t]
     kernel32.GlobalAlloc.restype = wintypes.HGLOBAL
     kernel32.GlobalLock.argtypes = [wintypes.HGLOBAL]
@@ -200,18 +205,18 @@ def copy_image_windows(image: Image.Image, window_handle: int = 0) -> None:
     user32.SetClipboardData.restype = wintypes.HANDLE
     handle = kernel32.GlobalAlloc(0x0002, len(data))
     if not handle:
-        raise MemoryError("클립보드 메모리 할당 실패")
+        raise MemoryError("Could not allocate clipboard memory.")
     try:
         pointer = kernel32.GlobalLock(handle)
         if not pointer:
-            raise OSError("클립보드 메모리 접근 실패")
+            raise RuntimeError("Could not access clipboard memory.")
         ctypes.memmove(pointer, data, len(data))
         kernel32.GlobalUnlock(handle)
         if not user32.OpenClipboard(window_handle):
-            raise RuntimeError("클립보드가 사용 중입니다. 잠시 후 다시 시도하세요.")
+            raise RuntimeError("The clipboard is busy. Try again shortly.")
         try:
             if not user32.EmptyClipboard() or not user32.SetClipboardData(8, handle):
-                raise OSError("이미지 복사 실패")
+                raise RuntimeError("Could not copy the image to the clipboard.")
             handle = None
         finally:
             user32.CloseClipboard()
