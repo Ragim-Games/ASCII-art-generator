@@ -41,15 +41,37 @@ class CliTests(unittest.TestCase):
         self.assertEqual(by_arg.stderr, "")
         self.assertLessEqual(max(map(len, by_arg.stdout.splitlines())), 90)
 
-    def test_interactive_prompt(self):
+    def test_interactive_prompt_keeps_both_results_until_explicit_exit(self):
         terminal = io.StringIO()
         terminal.isatty = lambda: True
         out, err = io.StringIO(), io.StringIO()
-        with patch.object(sys, "stdin", terminal), patch.object(builtins, "input", return_value="Hello"), contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+        with patch.object(sys, "stdin", terminal), patch.object(builtins, "input", side_effect=["Hello", "World", ":q"]) as prompt, contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
             code = main.main(["--fill", "#"])
         self.assertEqual(code, 0)
-        self.assertIn("Enter text", err.getvalue())
-        self.assertLessEqual(set(out.getvalue()), {"#", " ", "\n"})
+        self.assertEqual(prompt.call_count, 3)
+        self.assertEqual(err.getvalue().count("Enter text (up to"), 3)
+        columns = main.build_parser().get_default("columns")
+        expected = text_to_ascii("Hello", fill="#", columns=columns) + "\n" + text_to_ascii("World", fill="#", columns=columns) + "\n"
+        self.assertEqual(out.getvalue(), expected)
+        self.assertIn("Goodbye.", err.getvalue())
+
+    def test_interactive_session_recovers_after_empty_and_invalid_input(self):
+        terminal = io.StringIO()
+        terminal.isatty = lambda: True
+        out, err = io.StringIO(), io.StringIO()
+        with patch.object(sys, "stdin", terminal), patch.object(builtins, "input", side_effect=["", "A" * 301, "Hello", ":q"]), contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = main.main([])
+        self.assertEqual(code, 0)
+        self.assertIn("at most 300 characters", err.getvalue())
+        self.assertIn("█", out.getvalue())
+        self.assertEqual(err.getvalue().count("Enter text (up to"), 4)
+
+    def test_interactive_eof_and_ctrl_c_exit_cleanly(self):
+        for interruption in (EOFError, KeyboardInterrupt):
+            terminal = io.StringIO()
+            terminal.isatty = lambda: True
+            with patch.object(sys, "stdin", terminal), patch.object(builtins, "input", side_effect=interruption), contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(main.main([]), 0)
 
     def test_styles_and_fills_fit_terminal(self):
         for style in ("block", "large", "outline", "shadow", "3d", "italic"):

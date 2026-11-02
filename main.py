@@ -47,6 +47,28 @@ def copy_text(text: str) -> None:
     subprocess.run(["clip.exe"], input=text.encode("utf-16"), check=True)
 
 
+def interactive_session(args: argparse.Namespace, convert) -> int:
+    """Keep results visible and accept more text until the user explicitly exits."""
+    print("ASCII Studio - terminal mode\nEnter text and press Enter to generate art.\nType :q to quit. Press Enter on an empty line to continue.\n", file=sys.stderr, flush=True)
+    while True:
+        try:
+            print("Enter text (up to 300 characters, :q to quit): ", end="", file=sys.stderr, flush=True)
+            text = input()
+        except (KeyboardInterrupt, EOFError):
+            print("\nGoodbye.", file=sys.stderr)
+            return 0
+        if text.strip().lower() == ":q":
+            print("Goodbye.", file=sys.stderr)
+            return 0
+        if not text.strip():
+            continue
+        args.text = text
+        # Processing errors are reported by convert; the prompt stays available.
+        if convert(args) == 130:
+            print("Goodbye.", file=sys.stderr)
+            return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     configure_streams()
     parser = build_parser()
@@ -65,11 +87,19 @@ def main(argv: list[str] | None = None) -> int:
     if any(path.resolve() in inputs for path in (args.output, args.png) if path):
         parser.error("An output path must not overwrite an input image, text file, or font.")
     try:
-        from PIL import Image
-        from ascii_engine import text_to_ascii, image_to_ascii, load_image, art_to_image, copy_image_windows
+        import ascii_engine  # Check dependencies before starting an interactive session.
     except ImportError:
         print("Error: Pillow is required. Run: python -m pip install -r requirements.txt", file=sys.stderr)
         return 1
+    if args.text is None and args.text_file is None and args.image is None and sys.stdin.isatty():
+        return interactive_session(args, convert)
+    return convert(args)
+
+
+def convert(args: argparse.Namespace) -> int:
+    from PIL import Image
+    from ascii_engine import text_to_ascii, image_to_ascii, load_image, art_to_image, copy_image_windows
+
     try:
         if args.image:
             art = image_to_ascii(load_image(args.image), args.width, args.contrast, args.invert, args.fill)
@@ -79,11 +109,8 @@ def main(argv: list[str] | None = None) -> int:
             elif args.text_file:
                 with args.text_file.open(encoding="utf-8-sig") as source:
                     text = source.read(301)
-            elif not sys.stdin.isatty():
-                text = sys.stdin.read(302).removeprefix("\ufeff")
             else:
-                print("ASCII Studio - terminal mode\nEnter text (up to 300 characters): ", end="", file=sys.stderr, flush=True)
-                text = input()
+                text = sys.stdin.read(302).removeprefix("\ufeff")
             if not text.strip():
                 raise ValueError("No text provided. Use --text, --text-file, or pipe text into stdin.")
             art = text_to_ascii(text, args.style, args.fill, str(args.font) if args.font else None, args.columns)
@@ -101,7 +128,7 @@ def main(argv: list[str] | None = None) -> int:
             copy_image_windows(png)
             print("Copied image to the clipboard.", file=sys.stderr)
         if not args.quiet:
-            print(art)
+            print(art, flush=True)
         return 0
     except (OSError, ValueError, RuntimeError, MemoryError, UnicodeError, Image.DecompressionBombError, subprocess.SubprocessError) as error:
         # OS error strings can follow the system locale; keep diagnostics in English.

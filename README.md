@@ -12,11 +12,13 @@ python -m pip install -r requirements.txt
 
 ## Quick start (Windows CMD)
 
-Run without arguments to enter one line of text at the terminal prompt:
+Double-click `run.bat`, or run without arguments to start an interactive terminal session:
 
 ```cmd
 python main.py
 ```
+
+Enter your text and press Enter. The art stays visible, and the program prompts for the next text without closing or clearing previous results. Type `:q` and press Enter to quit. Empty input asks again; an invalid entry displays an English error and lets you retry. Ctrl+C or end-of-input also ends the session.
 
 Or pass text directly:
 
@@ -46,7 +48,7 @@ python main.py --help
 
 Text files and redirected output use UTF-8. A UTF-8 BOM is accepted in input files. For multiple lines, use `--text-file` or stdin. A literal `\n` in CMD arguments is not converted to a line break. Standard output contains only the art; prompts, save confirmations, and errors go to standard error. `--quiet` suppresses the art when saving or copying. Existing output files are replaced; input image, text, and font files are protected from being used as output paths. Parent output directories must already exist.
 
-`run.bat` forwards arguments and exit codes without changing the current directory, so relative file paths are resolved from the directory where you run the command. It does not pause or open another window.
+`run.bat` forwards arguments and exit codes without changing the current directory, so relative file paths are resolved from the directory where you run the command. With no arguments and a terminal attached, it starts the interactive session. If startup fails (for example, Python or Pillow is missing), it waits for Enter so the error remains visible when double-clicked. It does not open a GUI or launch a second terminal window. Commands with explicit inputs and piped stdin remain single-run operations, suitable for scripting.
 
 ## Options
 
@@ -88,7 +90,7 @@ PNG export uses a system monospace font. Missing glyphs depend on the selected f
 - Animated GIF: first frame only; EXIF orientation is applied.
 - Image art: at most 180 columns and 240 rows. Very tall images require cropping or a smaller `--width`.
 - PNG: at most 24 million pixels and 16,000 pixels per dimension.
-- Exit codes: `0` success, `1` processing error, `2` invalid arguments, `130` cancelled input.
+- Exit codes: `0` success or normal interactive exit, `1` processing error, `2` invalid arguments, `130` cancelled single-run conversion.
 
 ## Tests
 
@@ -96,7 +98,7 @@ PNG export uses a system monospace font. Missing glyphs depend on the selected f
 python -m unittest discover -s tests -v
 ```
 
-Tests cover Korean rendering, all styles, transparency, PNG generation, terminal input, English diagnostics, UTF-8 pipes, file exports, and CMD argument forwarding. They do not open windows or require a desktop session. Tested on Windows with Python 3.15 and Pillow 13.
+Tests cover Korean rendering, all styles, transparency, PNG generation, repeated interactive input, English diagnostics, UTF-8 pipes, file exports, and CMD argument forwarding. They do not open windows or require a desktop session. Tested on Windows with Python 3.15 and Pillow 13.
 
 ## Files
 
